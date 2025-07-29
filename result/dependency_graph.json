@@ -1,12 +1,12 @@
 {
   "nodes": [
-    "com.example.demo.service.ApiCallable",
-    "com.example.demo.service.ExternalApiService",
-    "com.example.demo.service.UserManagementService",
-    "com.example.demo.service.UserDetails",
     "com.example.demo.service.BaseApiService",
+    "com.example.demo.service.UserManagementService",
+    "com.example.demo.service.ApiCallable",
     "com.example.demo.service.UserManagementService.UserStatistics",
-    "com.example.demo.service.UserManagementService.AuditLog"
+    "com.example.demo.service.UserManagementService.AuditLog",
+    "com.example.demo.service.UserDetails",
+    "com.example.demo.service.ExternalApiService"
   ],
   "edges": [
     {

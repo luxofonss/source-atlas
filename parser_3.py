@@ -1,13 +1,8 @@
-"""
-Fixed Java Code Analyzer addressing the major parsing issues
-"""
-
 import os
 import re
 import json
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Set, Any, Protocol
-from abc import ABC, abstractmethod
+from typing import List, Dict, Tuple, Optional, Set, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 import logging
@@ -268,31 +263,36 @@ class JavaTypeResolver:
         types = set()
 
         # Process base type first
-        if base_type:
+        raw_types = set()
+        raw_types.add(base_type)
+        for t in all_types:
+            raw_types.add(t)
+
+        for rt in raw_types:
             # Check java.lang package (implicit import)
             java_lang_types = {
                 'String', 'Object', 'Class', 'Integer', 'Long', 'Double', 'Float', 
                 'Boolean', 'Character', 'Byte', 'Short', 'Number', 'Exception',
                 'RuntimeException', 'Throwable', 'Error', 'Thread', 'Runnable'
             }
-            if base_type not in java_lang_types:
-                if base_type in self.config.builtin_types:
-                    types.add(base_type + generic_part + array_suffix)
+            if rt not in java_lang_types:
+                if rt in self.config.builtin_types:
+                    types.add(rt)
                 
                 # Check direct imports
-                elif base_type in imports:
-                    resolved = imports[base_type]
-                    types.add(resolved + generic_part + array_suffix)
+                elif rt in imports:
+                    resolved = imports[rt]
+                    types.add(resolved)
                 
                 # Check wildcard imports
                 else:
-                    resolved_from_wildcard = self._resolve_from_wildcard_imports(base_type, imports)
+                    resolved_from_wildcard = self._resolve_from_wildcard_imports(rt, imports)
                     if resolved_from_wildcard:
                         types.add(resolved_from_wildcard + generic_part + array_suffix)
                     
                     # Check if it's in the same package
-                    elif package and base_type[0].isupper():
-                        same_package_type = f"{package}.{base_type}"
+                    elif package and rt[0].isupper():
+                        same_package_type = f"{package}.{rt}"
                         if same_package_type in self.class_cache:
                             types.add(same_package_type + generic_part + array_suffix)
                         else:
@@ -1096,7 +1096,10 @@ class FileProcessor:
             
             # Extract parameters
             parameters = self._extract_method_parameters(method_node, content, type_resolver, imports, package)
-            
+            parameter_types = set()
+            for _, ptype in parameters:
+                parameter_types.add(ptype)
+
             # Extract throws clause
             throws = self._extract_throws(method_node, content, type_resolver, imports, package)
             
@@ -1133,8 +1136,7 @@ class FileProcessor:
                 name=f"{full_class_name}.{method_name}",
                 return_type=return_type,
                 full_return_type=full_return_types,
-                parameters=parameters,
-                modifiers=modifiers,
+                parameters=list(parameter_types),
                 annotations=annotations,
                 method_type=method_type,
                 body=body,
@@ -1278,25 +1280,25 @@ class FileProcessor:
                     method_name = content[method_node.start_byte:method_node.end_byte]
                     
                     if object_name == 'this':
-                        method_calls.add(f"{full_class_name}.{method_name}()")
+                        method_calls.add(f"{full_class_name}.{method_name}")
                     elif object_name in field_map:
                         field_type = self._extract_base_class_name(field_map[object_name])
                         if not self._is_builtin_type(field_type):
-                            method_calls.add(f"{field_type}.{method_name}()")
+                            method_calls.add(f"{field_type}.{method_name}")
                     elif object_name in param_map:
                         param_type = self._extract_base_class_name(param_map[object_name])
                         if not self._is_builtin_type(param_type):
-                            method_calls.add(f"{param_type}.{method_name}()")
+                            method_calls.add(f"{param_type}.{method_name}")
                     elif object_name in local_variables:
                         var_type = self._extract_base_class_name(local_variables[object_name])
                         if not self._is_builtin_type(var_type):
-                            method_calls.add(f"{var_type}.{method_name}()")
+                            method_calls.add(f"{var_type}.{method_name}")
                     elif self._is_class_reference(object_name, imports, package):
                         resolved_classes = type_resolver.resolve_type_name(object_name, imports, package)
                         for resolved_class in resolved_classes:
                             clean_type = self._extract_base_class_name(resolved_class)
                             if not self._is_builtin_type(clean_type):
-                                method_calls.add(f"{clean_type}.{method_name}()")
+                                method_calls.add(f"{clean_type}.{method_name}")
                     
                     i += 2
                     
@@ -1304,7 +1306,7 @@ class FileProcessor:
                     method_node = captures[i][0]
                     method_name = content[method_node.start_byte:method_node.end_byte]
                     # Only add if it's actually a method of this class
-                    method_calls.add(f"{full_class_name}.{method_name}()")
+                    method_calls.add(f"{full_class_name}.{method_name}")
                     i += 1
                 else:
                     i += 1
@@ -1504,7 +1506,7 @@ class DependencyGraphBuilder:
                         dependency_graph.edges.append((chunk.full_class_name, base_type, "uses"))
                 
                 # Parameter dependencies
-                for _, param_type in method.parameters:
+                for param_type in method.parameters:
                     if param_type and not self._is_builtin_type(param_type):
                         base_type = self._extract_base_type(param_type)
                         if base_type != chunk.full_class_name and base_type in dependency_graph.nodes:
