@@ -1,0 +1,42 @@
+{
+  "total_classes": 7,
+  "class_types": {
+    "class": 5,
+    "abstract": 1,
+    "interface": 1
+  },
+  "method_types": {
+    "getter": 8,
+    "regular": 10,
+    "constructor": 1,
+    "setter": 9
+  },
+  "total_methods": 28,
+  "total_fields": 9,
+  "dependency_stats": {
+    "total_dependencies": 31,
+    "dependency_types": {
+      "method_call": 12,
+      "return": 2,
+      "inner_class": 2,
+      "field": 4,
+      "variable": 7,
+      "implements": 1,
+      "parameter": 2,
+      "extends": 1
+    }
+  },
+  "package_distribution": {
+    "com.example.demo.service": 7
+  },
+  "annotation_usage": {
+    "@RequestMapping(\"/api/users\")": 1
+  },
+  "complexity_metrics": {
+    "total_lines_of_code": 299,
+    "max_methods_per_class": 8,
+    "max_fields_per_class": 4,
+    "avg_methods_per_class": 4.0,
+    "avg_fields_per_class": 1.29
+  }
+}

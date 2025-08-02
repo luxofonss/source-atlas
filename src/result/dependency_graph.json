@@ -1,0 +1,1172 @@
+{
+  "nodes": {
+    "com.example.demo.service.UserManagementService": {
+      "package": "com.example.demo.service",
+      "class_name": "UserManagementService",
+      "full_class_name": "com.example.demo.service.UserManagementService",
+      "class_type": "class",
+      "file_path": "F:\\_side_projects\\source_atlas\\data\\repo\\test\\QuizServiceImpl.java",
+      "content": "@RestController\n@RequestMapping(\"/api/users\")\n@Service\npublic class UserManagementService {\n\n    @Autowired\n    private KafkaTemplate<String, String> kafkaTemplate;\n    \n    @Autowired\n    private JmsTemplate jmsTemplate;\n    \n    @Autowired\n    private ExternalApiService externalApiService;\n    \n    @Autowired\n    private UserRepository userRepository;\n\n    \n    @GetMapping\n    public ResponseEntity<List<User>> getAllUsers() {\n        List<User> users = userRepository.findAll();\n        return ResponseEntity.ok(users);\n    }\n\n    @PostMapping\n    public ResponseEntity<User> createUser(@RequestBody User user) {\n        User savedUser = userRepository.save(user);\n        \n        \n        sendKafkaMessage(\"user-events\", \"User created: \" + savedUser.getId());\n        \n        \n        sendJmsMessage(\"user.queue\", \"New user registered: \" + savedUser.getEmail());\n        \n        return ResponseEntity.ok(savedUser);\n    }\n\n    @GetMapping(\"/{id}\")\n    public ResponseEntity<User> getUserById(@PathVariable Long id) {\n        \n        UserDetails details = externalApiService.fetchUserDetails(id);\n        \n        User user = userRepository.findById(id).orElse(null);\n        if (user != null) {\n            user.setLastAccessTime(LocalDateTime.now());\n            userRepository.save(user);\n        }\n        \n        return ResponseEntity.ok(user);\n    }\n\n    \n    @Scheduled(fixedRate = 300000) \n    public void cleanupExpiredSessions() {\n        System.out.println(\"Running cleanup job at: \" + LocalDateTime.now());\n        \n        \n        List<User> inactiveUsers = userRepository.findInactiveUsers();\n        for (User user : inactiveUsers) {\n            sendKafkaMessage(\"cleanup-events\", \"Cleaning up user: \" + user.getId());\n        }\n        \n        System.out.println(\"Cleanup completed for \" + inactiveUsers.size() + \" users\");\n    }\n\n    \n    public void sendKafkaMessage(String topic, String message) {\n        kafkaTemplate.send(topic, message);\n        System.out.println(\"Kafka message sent to topic '\" + topic + \"': \" + message);\n    }\n\n    \n    @KafkaListener(topics = \"user-events\", groupId = \"user-service-group\")\n    public void handleUserEvent(String message) {\n        System.out.println(\"Received Kafka message: \" + message);\n        \n        \n        if (message.contains(\"User created\")) {\n            \n            sendJmsMessage(\"email.queue\", \"Send welcome email for: \" + message);\n        }\n    }\n\n    \n    public void sendJmsMessage(String queue, String message) {\n        jmsTemplate.convertAndSend(queue, message);\n        System.out.println(\"JMS message sent to queue '\" + queue + \"': \" + message);\n    }\n\n    \n    @JmsListener(destination = \"user.queue\")\n    public void handleUserNotification(String message) {\n        System.out.println(\"Received JMS message: \" + message);\n        \n        \n        AuditLog auditLog = new AuditLog();\n        auditLog.setMessage(message);\n        auditLog.setTimestamp(LocalDateTime.now());\n        auditLog.setProcessed(true);\n        \n        System.out.println(\"Audit log created: \" + auditLog);\n    }\n\n    \n    public static class AuditLog {\n        private String message;\n        private LocalDateTime timestamp;\n        private boolean processed;\n\n        public AuditLog() {}\n\n        public String getMessage() {\n            return message;\n        }\n\n        public void setMessage(String message) {\n            this.message = message;\n        }\n\n        public LocalDateTime getTimestamp() {\n            return timestamp;\n        }\n\n        public void setTimestamp(LocalDateTime timestamp) {\n            this.timestamp = timestamp;\n        }\n\n        public boolean isProcessed() {\n            return processed;\n        }\n\n        public void setProcessed(boolean processed) {\n            this.processed = processed;\n        }\n\n        @Override\n        public String toString() {\n            return \"AuditLog{\" +\n                    \"message='\" + message + '\\'' +\n                    \", timestamp=\" + timestamp +\n                    \", processed=\" + processed +\n                    '}';\n        }\n    }\n\n    \n    public class UserStatistics {\n        private int totalUsers;\n        private int activeUsers;\n        private LocalDateTime lastCalculated;\n\n        public void calculateStats() {\n            this.totalUsers = userRepository.findAll().size();\n            this.activeUsers = userRepository.findActiveUsers().size();\n            this.lastCalculated = LocalDateTime.now();\n            \n            \n            String statsMessage = String.format(\"Stats: Total=%d, Active=%d\", totalUsers, activeUsers);\n            sendKafkaMessage(\"stats-topic\", statsMessage);\n        }\n\n        \n        public int getTotalUsers() { return totalUsers; }\n        public void setTotalUsers(int totalUsers) { this.totalUsers = totalUsers; }\n        \n        public int getActiveUsers() { return activeUsers; }\n        public void setActiveUsers(int activeUsers) { this.activeUsers = activeUsers; }\n        \n        public LocalDateTime getLastCalculated() { return lastCalculated; }\n        public void setLastCalculated(LocalDateTime lastCalculated) { this.lastCalculated = lastCalculated; }\n    }\n}",
+      "implements": [],
+      "extends": null,
+      "fields": [
+        {
+          "name": "kafkaTemplate",
+          "type": "KafkaTemplate",
+          "full_type": "org.springframework.kafka.core.KafkaTemplate",
+          "annotations": []
+        },
+        {
+          "name": "jmsTemplate",
+          "type": "JmsTemplate",
+          "full_type": "org.springframework.jms.core.JmsTemplate",
+          "annotations": []
+        },
+        {
+          "name": "externalApiService",
+          "type": "ExternalApiService",
+          "full_type": "com.example.demo.service.ExternalApiService",
+          "annotations": []
+        },
+        {
+          "name": "userRepository",
+          "type": "UserRepository",
+          "full_type": "com.example.demo.repository.UserRepository",
+          "annotations": []
+        }
+      ],
+      "imports": {
+        "User": "com.example.demo.model.User",
+        "UserRepository": "com.example.demo.repository.UserRepository",
+        "Autowired": "org.springframework.beans.factory.annotation.Autowired",
+        "ResponseEntity": "org.springframework.http.ResponseEntity",
+        "JmsListener": "org.springframework.jms.annotation.JmsListener",
+        "JmsTemplate": "org.springframework.jms.core.JmsTemplate",
+        "KafkaListener": "org.springframework.kafka.annotation.KafkaListener",
+        "KafkaTemplate": "org.springframework.kafka.core.KafkaTemplate",
+        "Scheduled": "org.springframework.scheduling.annotation.Scheduled",
+        "Service": "org.springframework.stereotype.Service",
+        "annotation": "org.springframework.web.bind.annotation",
+        "LocalDateTime": "java.time.LocalDateTime",
+        "List": "java.util.List"
+      },
+      "methods": [
+        {
+          "name": "com.example.demo.service.UserManagementService.getAllUsers",
+          "return_type": "ResponseEntity<List<User>>",
+          "full_return_type": "List",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "getter",
+          "body": "@GetMapping\n    public ResponseEntity<List<User>> getAllUsers() {\n        List<User> users = userRepository.findAll();\n        return ResponseEntity.ok(users);\n    }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [
+            "com.example.demo.repository.UserRepository.findAll",
+            "com.example.demo.service.UserManagementService.ok",
+            "org.springframework.http.ResponseEntity.ok",
+            "com.example.demo.service.UserManagementService.findAll"
+          ],
+          "variable_usage": [
+            "com.example.demo.service.ExternalApiService",
+            "org.springframework.kafka.core.KafkaTemplate",
+            "com.example.demo.repository.UserRepository",
+            "org.springframework.jms.core.JmsTemplate"
+          ],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.createUser",
+          "return_type": "ResponseEntity<User>",
+          "full_return_type": "com.example.demo.model.User",
+          "parameters": [
+            [
+              "user",
+              "com.example.demo.model.User"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "@PostMapping\n    public ResponseEntity<User> createUser(@RequestBody User user) {\n        User savedUser = userRepository.save(user);\n        \n        \n        sendKafkaMessage(\"user-events\", \"User created: \" + savedUser.getId());\n        \n        \n        sendJmsMessage(\"user.queue\", \"New user registered: \" + savedUser.getEmail());\n        \n        return ResponseEntity.ok(savedUser);\n    }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [
+            "com.example.demo.service.UserManagementService.getEmail",
+            "org.springframework.http.ResponseEntity.ok",
+            "com.example.demo.service.UserManagementService.getId",
+            "com.example.demo.service.UserManagementService.save",
+            "com.example.demo.service.UserManagementService.sendKafkaMessage",
+            "com.example.demo.service.UserManagementService.sendJmsMessage",
+            "com.example.demo.model.User.getId",
+            "com.example.demo.repository.UserRepository.save",
+            "com.example.demo.service.UserManagementService.ok",
+            "com.example.demo.model.User.getEmail"
+          ],
+          "variable_usage": [
+            "com.example.demo.model.User",
+            "com.example.demo.service.ExternalApiService",
+            "org.springframework.jms.core.JmsTemplate",
+            "org.springframework.kafka.core.KafkaTemplate",
+            "com.example.demo.repository.UserRepository"
+          ],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        }
+      ],
+      "annotations": [
+        "@RequestMapping(\"/api/users\")"
+      ],
+      "is_nested": false,
+      "parent_class": null,
+      "inner_classes": [
+        "com.example.demo.service.UserManagementService.AuditLog",
+        "com.example.demo.service.UserManagementService.UserStatistics"
+      ],
+      "modifiers": [
+        "public"
+      ]
+    },
+    "com.example.demo.service.UserManagementService.AuditLog": {
+      "package": "com.example.demo.service",
+      "class_name": "AuditLog",
+      "full_class_name": "com.example.demo.service.UserManagementService.AuditLog",
+      "class_type": "class",
+      "file_path": "F:\\_side_projects\\source_atlas\\data\\repo\\test\\QuizServiceImpl.java",
+      "content": "public static class AuditLog {\n        private String message;\n        private LocalDateTime timestamp;\n        private boolean processed;\n\n        public AuditLog() {}\n\n        public String getMessage() {\n            return message;\n        }\n\n        public void setMessage(String message) {\n            this.message = message;\n        }\n\n        public LocalDateTime getTimestamp() {\n            return timestamp;\n        }\n\n        public void setTimestamp(LocalDateTime timestamp) {\n            this.timestamp = timestamp;\n        }\n\n        public boolean isProcessed() {\n            return processed;\n        }\n\n        public void setProcessed(boolean processed) {\n            this.processed = processed;\n        }\n\n        @Override\n        public String toString() {\n            return \"AuditLog{\" +\n                    \"message='\" + message + '\\'' +\n                    \", timestamp=\" + timestamp +\n                    \", processed=\" + processed +\n                    '}';\n        }\n    }",
+      "implements": [],
+      "extends": null,
+      "fields": [
+        {
+          "name": "message",
+          "type": "String",
+          "full_type": "String",
+          "annotations": []
+        },
+        {
+          "name": "timestamp",
+          "type": "LocalDateTime",
+          "full_type": "LocalDateTime",
+          "annotations": []
+        }
+      ],
+      "imports": {
+        "User": "com.example.demo.model.User",
+        "UserRepository": "com.example.demo.repository.UserRepository",
+        "Autowired": "org.springframework.beans.factory.annotation.Autowired",
+        "ResponseEntity": "org.springframework.http.ResponseEntity",
+        "JmsListener": "org.springframework.jms.annotation.JmsListener",
+        "JmsTemplate": "org.springframework.jms.core.JmsTemplate",
+        "KafkaListener": "org.springframework.kafka.annotation.KafkaListener",
+        "KafkaTemplate": "org.springframework.kafka.core.KafkaTemplate",
+        "Scheduled": "org.springframework.scheduling.annotation.Scheduled",
+        "Service": "org.springframework.stereotype.Service",
+        "annotation": "org.springframework.web.bind.annotation",
+        "LocalDateTime": "java.time.LocalDateTime",
+        "List": "java.util.List"
+      },
+      "methods": [
+        {
+          "name": "com.example.demo.service.UserManagementService.AuditLog.AuditLog",
+          "return_type": "",
+          "full_return_type": "",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "constructor",
+          "body": "",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.AuditLog.getMessage",
+          "return_type": "String",
+          "full_return_type": "String",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "getter",
+          "body": "public String getMessage() {\n            return message;\n        }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.AuditLog.setMessage",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "message",
+              "String"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setMessage(String message) {\n            this.message = message;\n        }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.AuditLog.getTimestamp",
+          "return_type": "LocalDateTime",
+          "full_return_type": "LocalDateTime",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "getter",
+          "body": "public LocalDateTime getTimestamp() {\n            return timestamp;\n        }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.AuditLog.setTimestamp",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "timestamp",
+              "LocalDateTime"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setTimestamp(LocalDateTime timestamp) {\n            this.timestamp = timestamp;\n        }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.AuditLog.isProcessed",
+          "return_type": "",
+          "full_return_type": "",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "public boolean isProcessed() {\n            return processed;\n        }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.AuditLog.setProcessed",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "processed",
+              "boolean"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setProcessed(boolean processed) {\n            this.processed = processed;\n        }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.AuditLog.toString",
+          "return_type": "String",
+          "full_return_type": "String",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "@Override\n        public String toString() {\n            return \"AuditLog{\" +\n                    \"message='\" + message + '\\'' +\n                    \", timestamp=\" + timestamp +\n                    \", processed=\" + processed +\n                    '}';\n        }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        }
+      ],
+      "annotations": [],
+      "is_nested": true,
+      "parent_class": "com.example.demo.service.UserManagementService",
+      "inner_classes": [],
+      "modifiers": [
+        "public",
+        "static"
+      ]
+    },
+    "com.example.demo.service.UserManagementService.UserStatistics": {
+      "package": "com.example.demo.service",
+      "class_name": "UserStatistics",
+      "full_class_name": "com.example.demo.service.UserManagementService.UserStatistics",
+      "class_type": "class",
+      "file_path": "F:\\_side_projects\\source_atlas\\data\\repo\\test\\QuizServiceImpl.java",
+      "content": "public class UserStatistics {\n        private int totalUsers;\n        private int activeUsers;\n        private LocalDateTime lastCalculated;\n\n        public void calculateStats() {\n            this.totalUsers = userRepository.findAll().size();\n            this.activeUsers = userRepository.findActiveUsers().size();\n            this.lastCalculated = LocalDateTime.now();\n            \n            \n            String statsMessage = String.format(\"Stats: Total=%d, Active=%d\", totalUsers, activeUsers);\n            sendKafkaMessage(\"stats-topic\", statsMessage);\n        }\n\n        \n        public int getTotalUsers() { return totalUsers; }\n        public void setTotalUsers(int totalUsers) { this.totalUsers = totalUsers; }\n        \n        public int getActiveUsers() { return activeUsers; }\n        public void setActiveUsers(int activeUsers) { this.activeUsers = activeUsers; }\n        \n        public LocalDateTime getLastCalculated() { return lastCalculated; }\n        public void setLastCalculated(LocalDateTime lastCalculated) { this.lastCalculated = lastCalculated; }\n    }",
+      "implements": [],
+      "extends": null,
+      "fields": [
+        {
+          "name": "lastCalculated",
+          "type": "LocalDateTime",
+          "full_type": "LocalDateTime",
+          "annotations": []
+        }
+      ],
+      "imports": {
+        "User": "com.example.demo.model.User",
+        "UserRepository": "com.example.demo.repository.UserRepository",
+        "Autowired": "org.springframework.beans.factory.annotation.Autowired",
+        "ResponseEntity": "org.springframework.http.ResponseEntity",
+        "JmsListener": "org.springframework.jms.annotation.JmsListener",
+        "JmsTemplate": "org.springframework.jms.core.JmsTemplate",
+        "KafkaListener": "org.springframework.kafka.annotation.KafkaListener",
+        "KafkaTemplate": "org.springframework.kafka.core.KafkaTemplate",
+        "Scheduled": "org.springframework.scheduling.annotation.Scheduled",
+        "Service": "org.springframework.stereotype.Service",
+        "annotation": "org.springframework.web.bind.annotation",
+        "LocalDateTime": "java.time.LocalDateTime",
+        "List": "java.util.List"
+      },
+      "methods": [
+        {
+          "name": "com.example.demo.service.UserManagementService.UserStatistics.calculateStats",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "public void calculateStats() {\n            this.totalUsers = userRepository.findAll().size();\n            this.activeUsers = userRepository.findActiveUsers().size();\n            this.lastCalculated = LocalDateTime.now();\n            \n            \n            String statsMessage = String.format(\"Stats: Total=%d, Active=%d\", totalUsers, activeUsers);\n            sendKafkaMessage(\"stats-topic\", statsMessage);\n        }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [
+            "com.example.demo.service.UserManagementService.UserStatistics.findActiveUsers",
+            "com.example.demo.service.UserManagementService.UserStatistics.findAll",
+            "com.example.demo.service.UserManagementService.UserStatistics.size",
+            "com.example.demo.service.UserManagementService.UserStatistics.now",
+            "com.example.demo.service.UserManagementService.UserStatistics.format",
+            "com.example.demo.service.UserManagementService.UserStatistics.sendKafkaMessage"
+          ],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.UserStatistics.getTotalUsers",
+          "return_type": "",
+          "full_return_type": "",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "getter",
+          "body": "public int getTotalUsers() { return totalUsers; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.UserStatistics.setTotalUsers",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "totalUsers",
+              "int"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setTotalUsers(int totalUsers) { this.totalUsers = totalUsers; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.UserStatistics.getActiveUsers",
+          "return_type": "",
+          "full_return_type": "",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "getter",
+          "body": "public int getActiveUsers() { return activeUsers; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.UserStatistics.setActiveUsers",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "activeUsers",
+              "int"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setActiveUsers(int activeUsers) { this.activeUsers = activeUsers; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.UserStatistics.getLastCalculated",
+          "return_type": "LocalDateTime",
+          "full_return_type": "LocalDateTime",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "getter",
+          "body": "public LocalDateTime getLastCalculated() { return lastCalculated; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserManagementService.UserStatistics.setLastCalculated",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "lastCalculated",
+              "LocalDateTime"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setLastCalculated(LocalDateTime lastCalculated) { this.lastCalculated = lastCalculated; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        }
+      ],
+      "annotations": [],
+      "is_nested": true,
+      "parent_class": "com.example.demo.service.UserManagementService",
+      "inner_classes": [],
+      "modifiers": [
+        "public"
+      ]
+    },
+    "com.example.demo.service.ExternalApiService": {
+      "package": "com.example.demo.service",
+      "class_name": "ExternalApiService",
+      "full_class_name": "com.example.demo.service.ExternalApiService",
+      "class_type": "class",
+      "file_path": "F:\\_side_projects\\source_atlas\\data\\repo\\test\\QuizServiceImpl.java",
+      "content": "@Service\nclass ExternalApiService extends BaseApiService implements ApiCallable {\n    \n    @Override\n    public UserDetails fetchUserDetails(Long userId) {\n        \n        System.out.println(\"Fetching user details for ID: \" + userId);\n        \n        UserDetails details = new UserDetails();\n        details.setUserId(userId);\n        details.setProfileComplete(true);\n        details.setLastLoginTime(LocalDateTime.now().minusDays(1));\n        \n        \n        5(\"fetchUserDetails\", userId.toString());\n        \n        return details;\n    }\n    \n    @Override\n    public boolean validateUser(Long userId) {\n        System.out.println(\"Validating user: \" + userId);\n        return userId != null && userId > 0;\n    }\n    \n    \n    public void syncUserData(Long userId) {\n        if (validateUser(userId)) {\n            UserDetails details = fetchUserDetails(userId);\n            \n            System.out.println(\"User data synced for: \" + userId);\n        }\n    }\n}",
+      "implements": [
+        "com.example.demo.service.ApiCallable"
+      ],
+      "extends": "com.example.demo.service.BaseApiService",
+      "fields": [],
+      "imports": {
+        "User": "com.example.demo.model.User",
+        "UserRepository": "com.example.demo.repository.UserRepository",
+        "Autowired": "org.springframework.beans.factory.annotation.Autowired",
+        "ResponseEntity": "org.springframework.http.ResponseEntity",
+        "JmsListener": "org.springframework.jms.annotation.JmsListener",
+        "JmsTemplate": "org.springframework.jms.core.JmsTemplate",
+        "KafkaListener": "org.springframework.kafka.annotation.KafkaListener",
+        "KafkaTemplate": "org.springframework.kafka.core.KafkaTemplate",
+        "Scheduled": "org.springframework.scheduling.annotation.Scheduled",
+        "Service": "org.springframework.stereotype.Service",
+        "annotation": "org.springframework.web.bind.annotation",
+        "LocalDateTime": "java.time.LocalDateTime",
+        "List": "java.util.List"
+      },
+      "methods": [
+        {
+          "name": "com.example.demo.service.ExternalApiService.fetchUserDetails",
+          "return_type": "UserDetails",
+          "full_return_type": "com.example.demo.service.UserDetails",
+          "parameters": [
+            [
+              "userId",
+              "Long"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "@Override\n    public UserDetails fetchUserDetails(Long userId) {\n        \n        System.out.println(\"Fetching user details for ID: \" + userId);\n        \n        UserDetails details = new UserDetails();\n        details.setUserId(userId);\n        details.setProfileComplete(true);\n        details.setLastLoginTime(LocalDateTime.now().minusDays(1));\n        \n        \n        5(\"fetchUserDetails\", userId.toString());\n        \n        return details;\n    }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [
+            "com.example.demo.service.ExternalApiService.setLastLoginTime",
+            "System.out.println",
+            "com.example.demo.service.UserDetails.setUserId",
+            "com.example.demo.service.ExternalApiService.setUserId",
+            "com.example.demo.service.ExternalApiService.setProfileComplete",
+            "com.example.demo.service.ExternalApiService.minusDays",
+            "com.example.demo.service.ExternalApiService.toString",
+            "com.example.demo.service.UserDetails.setLastLoginTime",
+            "com.example.demo.service.ExternalApiService.now",
+            "com.example.demo.service.UserDetails.setProfileComplete",
+            "com.example.demo.service.ExternalApiService.println"
+          ],
+          "variable_usage": [
+            "com.example.demo.service.UserDetails"
+          ],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.ExternalApiService.validateUser",
+          "return_type": "",
+          "full_return_type": "",
+          "parameters": [
+            [
+              "userId",
+              "Long"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "@Override\n    public boolean validateUser(Long userId) {\n        System.out.println(\"Validating user: \" + userId);\n        return userId != null && userId > 0;\n    }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [
+            "System.out.println",
+            "com.example.demo.service.ExternalApiService.println"
+          ],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.ExternalApiService.syncUserData",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "userId",
+              "Long"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "public void syncUserData(Long userId) {\n        if (validateUser(userId)) {\n            UserDetails details = fetchUserDetails(userId);\n            \n            System.out.println(\"User data synced for: \" + userId);\n        }\n    }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [
+            "com.example.demo.service.ExternalApiService.validateUser",
+            "System.out.println",
+            "com.example.demo.service.ExternalApiService.println",
+            "com.example.demo.service.ExternalApiService.fetchUserDetails"
+          ],
+          "variable_usage": [
+            "com.example.demo.service.UserDetails"
+          ],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        }
+      ],
+      "annotations": [],
+      "is_nested": false,
+      "parent_class": null,
+      "inner_classes": [],
+      "modifiers": []
+    },
+    "com.example.demo.service.BaseApiService": {
+      "package": "com.example.demo.service",
+      "class_name": "BaseApiService",
+      "full_class_name": "com.example.demo.service.BaseApiService",
+      "class_type": "abstract",
+      "file_path": "F:\\_side_projects\\source_atlas\\data\\repo\\test\\QuizServiceImpl.java",
+      "content": "abstract class BaseApiService {\n    protected void logApiCall(String method, String parameter) {\n        System.out.println(\"API Call logged: \" + method + \" with parameter: \" + parameter);\n    }\n    \n    protected void handleApiError(Exception e) {\n        System.err.println(\"API Error occurred: \" + e.getMessage());\n    }\n}",
+      "implements": [],
+      "extends": null,
+      "fields": [],
+      "imports": {
+        "User": "com.example.demo.model.User",
+        "UserRepository": "com.example.demo.repository.UserRepository",
+        "Autowired": "org.springframework.beans.factory.annotation.Autowired",
+        "ResponseEntity": "org.springframework.http.ResponseEntity",
+        "JmsListener": "org.springframework.jms.annotation.JmsListener",
+        "JmsTemplate": "org.springframework.jms.core.JmsTemplate",
+        "KafkaListener": "org.springframework.kafka.annotation.KafkaListener",
+        "KafkaTemplate": "org.springframework.kafka.core.KafkaTemplate",
+        "Scheduled": "org.springframework.scheduling.annotation.Scheduled",
+        "Service": "org.springframework.stereotype.Service",
+        "annotation": "org.springframework.web.bind.annotation",
+        "LocalDateTime": "java.time.LocalDateTime",
+        "List": "java.util.List"
+      },
+      "methods": [
+        {
+          "name": "com.example.demo.service.BaseApiService.logApiCall",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "method",
+              "String"
+            ],
+            [
+              "parameter",
+              "String"
+            ]
+          ],
+          "modifiers": [
+            "protected"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "protected void logApiCall(String method, String parameter) {\n        System.out.println(\"API Call logged: \" + method + \" with parameter: \" + parameter);\n    }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [
+            "System.out.println",
+            "com.example.demo.service.BaseApiService.println"
+          ],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.BaseApiService.handleApiError",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "e",
+              "Exception"
+            ]
+          ],
+          "modifiers": [
+            "protected"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "protected void handleApiError(Exception e) {\n        System.err.println(\"API Error occurred: \" + e.getMessage());\n    }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [
+            "com.example.demo.service.BaseApiService.getMessage",
+            "System.err.println",
+            "com.example.demo.service.BaseApiService.println",
+            "Exception.getMessage"
+          ],
+          "variable_usage": [
+            "Exception"
+          ],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        }
+      ],
+      "annotations": [],
+      "is_nested": false,
+      "parent_class": null,
+      "inner_classes": [],
+      "modifiers": [
+        "abstract"
+      ]
+    },
+    "com.example.demo.service.ApiCallable": {
+      "package": "com.example.demo.service",
+      "class_name": "ApiCallable",
+      "full_class_name": "com.example.demo.service.ApiCallable",
+      "class_type": "interface",
+      "file_path": "F:\\_side_projects\\source_atlas\\data\\repo\\test\\QuizServiceImpl.java",
+      "content": "interface ApiCallable {\n    UserDetails fetchUserDetails(Long userId);\n    boolean validateUser(Long userId);\n}",
+      "implements": [],
+      "extends": null,
+      "fields": [],
+      "imports": {
+        "User": "com.example.demo.model.User",
+        "UserRepository": "com.example.demo.repository.UserRepository",
+        "Autowired": "org.springframework.beans.factory.annotation.Autowired",
+        "ResponseEntity": "org.springframework.http.ResponseEntity",
+        "JmsListener": "org.springframework.jms.annotation.JmsListener",
+        "JmsTemplate": "org.springframework.jms.core.JmsTemplate",
+        "KafkaListener": "org.springframework.kafka.annotation.KafkaListener",
+        "KafkaTemplate": "org.springframework.kafka.core.KafkaTemplate",
+        "Scheduled": "org.springframework.scheduling.annotation.Scheduled",
+        "Service": "org.springframework.stereotype.Service",
+        "annotation": "org.springframework.web.bind.annotation",
+        "LocalDateTime": "java.time.LocalDateTime",
+        "List": "java.util.List"
+      },
+      "methods": [],
+      "annotations": [],
+      "is_nested": false,
+      "parent_class": null,
+      "inner_classes": [],
+      "modifiers": []
+    },
+    "com.example.demo.service.UserDetails": {
+      "package": "com.example.demo.service",
+      "class_name": "UserDetails",
+      "full_class_name": "com.example.demo.service.UserDetails",
+      "class_type": "class",
+      "file_path": "F:\\_side_projects\\source_atlas\\data\\repo\\test\\QuizServiceImpl.java",
+      "content": "class UserDetails {\n    private Long userId;\n    private boolean profileComplete;\n    private LocalDateTime lastLoginTime;\n\n    \n    public Long getUserId() { return userId; }\n    public void setUserId(Long userId) { this.userId = userId; }\n    \n    public boolean isProfileComplete() { return profileComplete; }\n    public void setProfileComplete(boolean profileComplete) { this.profileComplete = profileComplete; }\n    \n    public LocalDateTime getLastLoginTime() { return lastLoginTime; }\n    public void setLastLoginTime(LocalDateTime lastLoginTime) { this.lastLoginTime = lastLoginTime; }\n}",
+      "implements": [],
+      "extends": null,
+      "fields": [
+        {
+          "name": "userId",
+          "type": "Long",
+          "full_type": "Long",
+          "annotations": []
+        },
+        {
+          "name": "lastLoginTime",
+          "type": "LocalDateTime",
+          "full_type": "LocalDateTime",
+          "annotations": []
+        }
+      ],
+      "imports": {
+        "User": "com.example.demo.model.User",
+        "UserRepository": "com.example.demo.repository.UserRepository",
+        "Autowired": "org.springframework.beans.factory.annotation.Autowired",
+        "ResponseEntity": "org.springframework.http.ResponseEntity",
+        "JmsListener": "org.springframework.jms.annotation.JmsListener",
+        "JmsTemplate": "org.springframework.jms.core.JmsTemplate",
+        "KafkaListener": "org.springframework.kafka.annotation.KafkaListener",
+        "KafkaTemplate": "org.springframework.kafka.core.KafkaTemplate",
+        "Scheduled": "org.springframework.scheduling.annotation.Scheduled",
+        "Service": "org.springframework.stereotype.Service",
+        "annotation": "org.springframework.web.bind.annotation",
+        "LocalDateTime": "java.time.LocalDateTime",
+        "List": "java.util.List"
+      },
+      "methods": [
+        {
+          "name": "com.example.demo.service.UserDetails.getUserId",
+          "return_type": "Long",
+          "full_return_type": "Long",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "getter",
+          "body": "public Long getUserId() { return userId; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserDetails.setUserId",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "userId",
+              "Long"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setUserId(Long userId) { this.userId = userId; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserDetails.isProfileComplete",
+          "return_type": "",
+          "full_return_type": "",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "regular",
+          "body": "public boolean isProfileComplete() { return profileComplete; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserDetails.setProfileComplete",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "profileComplete",
+              "boolean"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setProfileComplete(boolean profileComplete) { this.profileComplete = profileComplete; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserDetails.getLastLoginTime",
+          "return_type": "LocalDateTime",
+          "full_return_type": "LocalDateTime",
+          "parameters": [],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "getter",
+          "body": "public LocalDateTime getLastLoginTime() { return lastLoginTime; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        },
+        {
+          "name": "com.example.demo.service.UserDetails.setLastLoginTime",
+          "return_type": "void",
+          "full_return_type": "void",
+          "parameters": [
+            [
+              "lastLoginTime",
+              "LocalDateTime"
+            ]
+          ],
+          "modifiers": [
+            "public"
+          ],
+          "annotations": [],
+          "method_type": "setter",
+          "body": "public void setLastLoginTime(LocalDateTime lastLoginTime) { this.lastLoginTime = lastLoginTime; }",
+          "is_abstract": false,
+          "is_override": false,
+          "throws": [],
+          "method_calls": [],
+          "variable_usage": [],
+          "inheritance_info": [],
+          "extends_info": [],
+          "endpoint": null
+        }
+      ],
+      "annotations": [],
+      "is_nested": false,
+      "parent_class": null,
+      "inner_classes": [],
+      "modifiers": []
+    }
+  },
+  "edges": [
+    {
+      "source": "com.example.demo.service.ExternalApiService",
+      "target": "System.out",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.ExternalApiService",
+      "target": "com.example.demo.service.UserDetails",
+      "relationship": "return"
+    },
+    {
+      "source": "com.example.demo.service.BaseApiService",
+      "target": "Exception",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.service.UserManagementService.AuditLog",
+      "relationship": "inner_class"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "org.springframework.jms.core.JmsTemplate",
+      "relationship": "field"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "org.springframework.jms.core.JmsTemplate",
+      "relationship": "variable"
+    },
+    {
+      "source": "com.example.demo.service.BaseApiService",
+      "target": "System.err",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.service.UserManagementService",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.model.User",
+      "relationship": "return"
+    },
+    {
+      "source": "com.example.demo.service.BaseApiService",
+      "target": "com.example.demo.service.BaseApiService",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.ExternalApiService",
+      "target": "com.example.demo.service.UserDetails",
+      "relationship": "variable"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService.UserStatistics",
+      "target": "com.example.demo.service.UserManagementService.UserStatistics",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.BaseApiService",
+      "target": "System.out",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.ExternalApiService",
+      "target": "com.example.demo.service.ApiCallable",
+      "relationship": "implements"
+    },
+    {
+      "source": "com.example.demo.service.ExternalApiService",
+      "target": "com.example.demo.service.UserDetails",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.service.UserManagementService.UserStatistics",
+      "relationship": "inner_class"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "org.springframework.kafka.core.KafkaTemplate",
+      "relationship": "variable"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.repository.UserRepository",
+      "relationship": "field"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "org.springframework.kafka.core.KafkaTemplate",
+      "relationship": "field"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.model.User",
+      "relationship": "variable"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.repository.UserRepository",
+      "relationship": "variable"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.model.User",
+      "relationship": "parameter"
+    },
+    {
+      "source": "com.example.demo.service.ExternalApiService",
+      "target": "com.example.demo.service.BaseApiService",
+      "relationship": "extends"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.service.ExternalApiService",
+      "relationship": "field"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.service.ExternalApiService",
+      "relationship": "variable"
+    },
+    {
+      "source": "com.example.demo.service.BaseApiService",
+      "target": "Exception",
+      "relationship": "variable"
+    },
+    {
+      "source": "com.example.demo.service.BaseApiService",
+      "target": "Exception",
+      "relationship": "parameter"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "org.springframework.http.ResponseEntity",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.repository.UserRepository",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.ExternalApiService",
+      "target": "com.example.demo.service.ExternalApiService",
+      "relationship": "method_call"
+    },
+    {
+      "source": "com.example.demo.service.UserManagementService",
+      "target": "com.example.demo.model.User",
+      "relationship": "method_call"
+    }
+  ]
+}

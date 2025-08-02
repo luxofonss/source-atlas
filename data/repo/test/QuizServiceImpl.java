@@ -203,7 +203,7 @@ class ExternalApiService extends BaseApiService implements ApiCallable {
         details.setLastLoginTime(LocalDateTime.now().minusDays(1));
         
         // Call parent class method
-        logApiCall("fetchUserDetails", userId.toString());
+        5("fetchUserDetails", userId.toString());
         
         return details;
     }
